@@ -54,26 +54,11 @@ export circuit extendCanvas(): [Coordinate] {
     // update canvas idx
     canvasIdx.insert(newCoordinate, newSquare);
 
-    // Increase nextY until it hits depth.
-    // (i.e. move UP the vertical leg of the L-shape).
-    if (nextY < depth) {
-        nextY = nextY + 1 as Uint<32>;
-        return [newCoordinate];
-    }
-
-    // Decrement nextX until it hits zero.
-    // (i.e. move LEFT along the horizontal leg of the L-shape).
-    if (nextX > 0) {
-        nextX = nextX - 1 as Uint<32>;
-        return [newCoordinate];
-    }
-
-    // once nextY is at depth and nextX is at zero,
-    // increment depth and reset nextX and nextY.
-    // (i.e. Shell complete! Step out to the next outer L-shell layer).
-    depth = depth + 1 as Uint<32>;
-    nextX = depth;
-    nextY = 0 as Uint<32>;
+    // increment to get next coordinates
+    const [incDepth, incX, incY] = incrementCoordinate(depth, nextX, nextY);
+    depth = incDepth;
+    nextX = incX;
+    nextY = incY;
 
     return [newCoordinate];
 }
@@ -124,4 +109,19 @@ export pure circuit generateOwnerCommittment(
         y as Bytes<32>,
         nonce as Bytes<32>,
     ]);
+}
+
+export pure circuit incrementCoordinate(depth: Uint<32>, x: Uint<32>, y: Uint<32>): [Uint<32>, Uint<32>, Uint<32>] {
+// Determine if we are at the very last pixel of the current L-shell 
+// (We crawled up to 'depth', and crawled all the way left to '0')
+return (x == 0 as Uint<32> && y == depth)
+    ? [
+        depth + 1 as Uint<32>, // Step out to the next depth layer
+        depth + 1 as Uint<32>, // Set nextX to the new depth
+        0 as Uint<32>          // Reset nextY to 0
+      ]
+    // Otherwise advance along exactly ONE leg of the L — never both at once.
+    : (y < depth)
+        ? [depth, x, y + 1 as Uint<32>]   // Vertical leg: crawl UP the column (x fixed)
+        : [depth, x - 1 as Uint<32>, y];  // Horizontal leg: crawl LEFT along the row (y fixed)
 }

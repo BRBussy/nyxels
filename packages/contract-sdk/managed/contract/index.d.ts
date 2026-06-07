@@ -23,6 +23,13 @@ export type ProvableCircuits<PS> = {
 }
 
 export type PureCircuits = {
+  generateOwnerCommittment(sk_0: Uint8Array,
+                           x_0: bigint,
+                           y_0: bigint,
+                           nonce_0: bigint): Uint8Array;
+  incrementCoordinate(depth_0: bigint, x_0: bigint, y_0: bigint): [bigint,
+                                                                   bigint,
+                                                                   bigint];
 }
 
 export type Circuits<PS> = {
@@ -32,6 +39,17 @@ export type Circuits<PS> = {
   updateSquare(context: __compactRuntime.CircuitContext<PS>,
                coordinate_0: { x: bigint, y: bigint },
                strokeData_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  generateOwnerCommittment(context: __compactRuntime.CircuitContext<PS>,
+                           sk_0: Uint8Array,
+                           x_0: bigint,
+                           y_0: bigint,
+                           nonce_0: bigint): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  incrementCoordinate(context: __compactRuntime.CircuitContext<PS>,
+                      depth_0: bigint,
+                      x_0: bigint,
+                      y_0: bigint): __compactRuntime.CircuitResults<PS, [bigint,
+                                                                         bigint,
+                                                                         bigint]>;
 }
 
 export type Ledger = {
