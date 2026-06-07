@@ -1,0 +1,219 @@
+.app {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.app header {
+  text-align: center;
+}
+
+.app h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.app header p {
+  margin: 0;
+  opacity: 0.6;
+  font-size: 0.95rem;
+}
+
+/* ---- Toolbar ---- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.group {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  padding: 0;
+  transition: transform 0.08s ease, border-color 0.08s ease;
+}
+
+.swatch:hover {
+  transform: scale(1.12);
+}
+
+.swatch[aria-pressed="true"] {
+  border-color: #fff;
+  transform: scale(1.18);
+}
+
+/* Mode toggle (Draw / View) */
+.modes {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mode-btn {
+  padding: 0.4rem 0.9rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+.mode-btn:not([aria-pressed="true"]):hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mode-btn[aria-pressed="true"] {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.size-btn,
+.action {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+.size-btn {
+  width: 32px;
+  height: 30px;
+}
+
+.action {
+  padding: 0.4rem 0.7rem;
+}
+
+.size-btn:hover,
+.action:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.size-btn[aria-pressed="true"] {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.action:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---- Canvas ---- */
+.canvas-frame {
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: auto;
+  max-width: 100%;
+}
+
+/* The grid is a fixed-size positioned surface; every layer below is absolutely
+   placed within it. Layers paint in DOM order: white tiles → ink → grey wash →
+   add-button. Adjacent active squares share one white surface and one ink layer,
+   so strokes are seamless across them. */
+.grid {
+  position: relative;
+  touch-action: none;
+}
+
+.grid--draw {
+  cursor: crosshair;
+}
+
+.grid > * {
+  position: absolute;
+}
+
+.tile {
+  background: #fafafa;
+  pointer-events: none;
+}
+
+/* One overlay holding all strokes — never clipped per square. */
+.stroke-layer {
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+/* Light grey wash over inactive squares (draw mode), painted above the ink. */
+.dim {
+  background: rgba(170, 174, 184, 0.5);
+  pointer-events: none;
+}
+
+.add-square {
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.02);
+  border: 2px dashed rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 2.5rem;
+  font-weight: 300;
+  line-height: 1;
+  transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.add-square:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+/* ---- Footer ---- */
+.app footer {
+  font-size: 0.8rem;
+  opacity: 0.5;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Per-square size table ---- */
+.sizes {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sizes th,
+.sizes td {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.35rem 0.85rem;
+  text-align: left;
+}
+
+.sizes th {
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.sizes th:nth-child(2),
+.sizes th:nth-child(3),
+.sizes td:nth-child(2),
+.sizes td:nth-child(3) {
+  text-align: right;
+}
+
+.sizes tfoot td {
+  border-top: 2px solid rgba(255, 255, 255, 0.3);
+  font-weight: 600;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "nyxels",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nyxels — a shared, on-chain pixel canvas on Midnight. Compact contract + compiled SDK + React UI.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev": "npm run dev --workspace @nyxels/ui",
+    "compile": "npm run compile --workspace @nyxels/contract"
+  }
+}

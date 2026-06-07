@@ -1,0 +1,22 @@
+{
+  "name": "@nyxels/contract-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compiled Compact SDK (the managed/ artifacts) for the Nyxels shared-canvas contract.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./managed/*": "./managed/*"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "^0.16.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

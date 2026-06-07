@@ -1,0 +1,20 @@
+{
+  "name": "@nyxels/contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compact source for the Nyxels shared-canvas contract. Compiles into @nyxels/contract-sdk.",
+  "scripts": {
+    "compile": "compact compile src/shared-canvas.compact ../contract-sdk/managed",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nyxels/contract-sdk": "*"
+  },
+  "devDependencies": {
+    "@midnight-ntwrk/compact-runtime": "^0.16.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
