@@ -1,5 +1,8 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { type NetworkId as SDKNetworkId, setNetworkId as setSDKNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
+// midnight-js reads a process-global network id internally (unlike compact-js,
+// which takes it explicitly). We set it once here, via the umbrella package's
+// subpath so the whole app touches one resolution of midnight-js-network-id.
+import { type NetworkId as SDKNetworkId, setNetworkId as setSDKNetworkId } from "@midnight-ntwrk/midnight-js/network-id";
 
 // Midnight's network identifiers — the literal strings the SDK and Lace wallet
 // expect (e.g. `wallet.connect('preprod')`). Ordered from local development
