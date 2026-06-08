@@ -31,7 +31,7 @@ describe("genesis() yields an empty canvas at depth 0", () => {
       createConstructorContext<SharedCanvasPrivateState>({}, CPK),
     );
 
-    // 3 - wrap the genesis state into a circuit context to facilitate reading
+    // 3 - wrap the genesis state into a circuit context to facilitate reading + pass to circuit calls
     const ctx = createCircuitContext(sampleContractAddress(), CPK, currentContractState, currentPrivateState);
 
     // decode the raw state into a typed, read-only ledger view
@@ -52,7 +52,7 @@ describe("extend canvas", () => {
       createConstructorContext<SharedCanvasPrivateState>({}, CPK),
     );
 
-    // 3 - wrap the state into a circuit context to facilitate reading
+    // 3 - wrap the state into a circuit context to facilitate reading + pass to circuit calls
     let ctx = createCircuitContext(sampleContractAddress(), CPK, currentContractState, currentPrivateState);
 
     // 4 - run the circuit against the context + bump ctx from result
@@ -63,10 +63,45 @@ describe("extend canvas", () => {
     expect(result.result[0]).toEqual({x: 0n, y: 0n});
 
     // 6 - check updated state
-    const l = SharedCanvas.ledger(ctx.currentQueryContext.state);
+    const l = SharedCanvas.ledger(ctx.currentQueryContext.state); // parse + type state
     expect(l.canvasIdx.size()).toBe(1n); // confirm canvas size
     expect(l.canvasIdx.member({x: 0n, y: 0n})).toBe(true); // confirm entry
     expect([l.depth, l.nextX, l.nextY]).toEqual([1n, 1n, 0n]); // cursor moved 1
+  });
+});
+
+describe("updateSquare",() => {
+  it("update square changes state", () => {
+    // 1 - construct the contract, typing with the shape of private state and passing in witnesses
+    const contract = new SharedCanvas.Contract<SharedCanvasPrivateState>(witnesses);
+
+    // 2 - execute the constructor of the contract
+    const {currentContractState, currentPrivateState} = contract.initialState(
+      createConstructorContext<SharedCanvasPrivateState>({}, CPK),
+    );
+
+    // 3 - wrap the state into a circuit context to facilitate reading + pass to circuit calls
+    let ctx = createCircuitContext(sampleContractAddress(), CPK, currentContractState, currentPrivateState);
+
+    // run the circuit against context + bump ctx from result
+    const strokes = new Uint8Array([1,2,3,4]);
+    expect(() => {
+      contract.circuits.updateSquare(ctx, {x: 0n, y: 0n}, strokes);
+    }).toThrow("no canvas square at given coordinate");
+
+    // extend
+    ctx = contract.circuits.extendCanvas(ctx).context;
+
+    // try again
+    const result = contract.circuits.updateSquare(ctx, {x: 0n, y: 0n}, strokes);
+    ctx = result.context;
+    expect(result.result).toEqual([]);
+
+    // parse and check updated state
+    const l = SharedCanvas.ledger(ctx.currentQueryContext.state);
+    const sq = l.canvasIdx.lookup({x: 0n, y: 0n});
+    expect(sq.strokeData).toEqual(strokes);
+    expect(sq.nonce).toEqual(1n);
   });
 });
 
