@@ -2,6 +2,7 @@
 // witnesses, private state, the CompiledContract, and join/read helpers.
 import { CompiledContract } from "@midnight-ntwrk/compact-js";
 import type { WitnessContext } from "@midnight-ntwrk/compact-runtime";
+import type { FinalizedTransaction } from "@midnight-ntwrk/ledger-v8";
 import { findDeployedContract, type FoundContract } from "@midnight-ntwrk/midnight-js/contracts";
 import type { MidnightProviders, PublicDataProvider } from "@midnight-ntwrk/midnight-js/types";
 import * as SharedCanvas from "@nyxels/contract-sdk";
@@ -103,6 +104,14 @@ export interface JoinedSharedCanvas {
   readonly contract: FoundContract<SharedCanvas.Contract<SharedCanvasPrivateState>>;
 }
 
+export interface JoinSharedCanvasOptions {
+  /**
+   * Observe every finalized (proven, balanced) transaction just before it is
+   * submitted to the network — e.g. to estimate/inspect its dust fees.
+   */
+  readonly onSubmitTransaction?: (transaction: FinalizedTransaction) => void;
+}
+
 /**
  * Resolve the deployed contract's address and join it: verifies the on-chain
  * verifier keys match our compiled artifacts and returns a handle whose
@@ -110,9 +119,29 @@ export interface JoinedSharedCanvas {
  * the local private state with our fixed operator identity so ownership is
  * stable across tests and runs.
  */
-export async function joinSharedCanvas(wallet: Wallet): Promise<JoinedSharedCanvas> {
+export async function joinSharedCanvas(
+  wallet: Wallet,
+  options?: JoinSharedCanvasOptions,
+): Promise<JoinedSharedCanvas> {
   const address = resolveContractAddress();
-  const providers = buildProviders<SharedCanvasCircuit>(wallet, zkConfigPath, config);
+  const built = buildProviders<SharedCanvasCircuit>(wallet, zkConfigPath, config);
+
+  // midnight-js-protocol/ledger is a re-export of ledger-v8, so the tx the
+  // provider receives IS a ledger-v8 FinalizedTransaction — the wrap below
+  // only threads it to the observer before delegating.
+  const onSubmit = options?.onSubmitTransaction;
+  const providers: MidnightProviders<SharedCanvasCircuit> = onSubmit
+    ? {
+        ...built,
+        midnightProvider: {
+          submitTx: (tx) => {
+            onSubmit(tx);
+            return built.midnightProvider.submitTx(tx);
+          },
+        },
+      }
+    : built;
+
   const contract = await findDeployedContract(providers, {
     contractAddress: address,
     compiledContract: buildCompiledContract(),

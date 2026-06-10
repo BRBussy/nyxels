@@ -5,13 +5,14 @@
   "type": "module",
   "description": "Integration tests for the Nyxels shared-canvas contract against a real Midnight stack.",
   "scripts": {
-    "test": "npm run test:environment && npm run test:compile && npm run test:account && npm run test:deploy && npm run test:extend-canvas && npm run test:update-square",
+    "test": "npm run test:environment && npm run test:compile && npm run test:account && npm run test:deploy && npm run test:extend-canvas && npm run test:update-square && npm run test:dust-estimation",
     "test:environment": "vitest run src/tests/1-environment.test.ts",
     "test:compile": "vitest run src/tests/2-compile.test.ts",
     "test:account": "vitest run src/tests/3-account.test.ts",
     "test:deploy": "vitest run src/tests/4-deploy.test.ts",
     "test:extend-canvas": "vitest run src/tests/5-interactions/extend-canvas.test.ts",
     "test:update-square": "vitest run src/tests/5-interactions/update-square.test.ts",
+    "test:dust-estimation": "vitest run src/tests/6-dust-estimation.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

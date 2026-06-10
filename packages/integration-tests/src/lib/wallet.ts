@@ -54,6 +54,17 @@ export interface Wallet {
   stop(): Promise<void>;
 }
 
+/**
+ * The fee settings the facade balances transactions with: it burns
+ * `feesWithMargin(params, feeBlocksMargin) + additionalFeeOverhead` per
+ * transaction. Exported so dust estimations can use the exact same values
+ * (see @nyxels/contract-sdk's DustCostParameters).
+ */
+export const COST_PARAMETERS: { readonly additionalFeeOverhead: bigint; readonly feeBlocksMargin: number } = {
+  additionalFeeOverhead: 300_000_000_000n,
+  feeBlocksMargin: 5,
+};
+
 /** Normalise a 64-char hex seed (with or without 0x) into 32 bytes. */
 function seedBytes(seed: string): Uint8Array {
   const hex = seed.startsWith("0x") ? seed.slice(2) : seed;
@@ -107,7 +118,7 @@ export async function buildWallet(seed: string, config: Config): Promise<Wallet>
       },
       provingServerUrl: new URL(config.proofServerUrl),
       relayURL: new URL(config.nodeUrl.replace(/^http/, "ws")),
-      costParameters: { additionalFeeOverhead: 300_000_000_000n, feeBlocksMargin: 5 },
+      costParameters: COST_PARAMETERS,
       txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
     },
     shielded: (cfg) => ShieldedWallet(cfg).startWithSecretKeys(keys.shieldedSecretKeys),

@@ -49,9 +49,10 @@ packages/
             ├─ 2-compile.test.ts        #   packages/contract compiles cleanly
             ├─ 3-account.test.ts        #   SEED account synced, has NIGHT + DUST
             ├─ 4-deploy.test.ts         #   deploys via contract-sdk; persists the address
-            └─ 5-interactions/          #   one test per contract method
-                ├─ extend-canvas.test.ts
-                └─ update-square.test.ts
+            ├─ 5-interactions/          #   one test per contract method
+            │   ├─ extend-canvas.test.ts
+            │   └─ update-square.test.ts
+            └─ 6-dust-estimation.test.ts #  contract-sdk dust estimate vs actual dust paid/consumed
 ```
 
 `npm test` is simply every test `&&`-chained in order:
@@ -59,13 +60,14 @@ packages/
 ```json
 {
   "scripts": {
-    "test": "npm run test:environment && npm run test:compile && npm run test:account && npm run test:deploy && npm run test:extend-canvas && npm run test:update-square",
+    "test": "npm run test:environment && npm run test:compile && npm run test:account && npm run test:deploy && npm run test:extend-canvas && npm run test:update-square && npm run test:dust-estimation",
     "test:environment": "vitest run src/tests/1-environment.test.ts",
     "test:compile": "vitest run src/tests/2-compile.test.ts",
     "test:account": "vitest run src/tests/3-account.test.ts",
     "test:deploy": "vitest run src/tests/4-deploy.test.ts",
     "test:extend-canvas": "vitest run src/tests/5-interactions/extend-canvas.test.ts",
-    "test:update-square": "vitest run src/tests/5-interactions/update-square.test.ts"
+    "test:update-square": "vitest run src/tests/5-interactions/update-square.test.ts",
+    "test:dust-estimation": "vitest run src/tests/6-dust-estimation.test.ts"
   }
 }
 ```
@@ -159,3 +161,11 @@ Tests, in the order `npm test` runs them:
    change:
    - **extend-canvas** — extends the canvas; asserts the new bounds.
    - **update-square** — updates a square; asserts the stored square data.
+6. **Dust estimation** — validates `@nyxels/contract-sdk`'s dust estimation
+   tool (`estimateDustCost` + `fetchLedgerParameters` + `paidDustFees`): it
+   intercepts the finalized extendCanvas transaction pre-submission, estimates
+   its line-item dust cost from the chain's current fee parameters, and
+   asserts the estimate matches both the fee the wallet actually attached
+   (the dust spend's `vFee`) and the observed dust balance drop (both
+   balance snapshots priced at one timestamp so dust generation cancels out).
+   On the local dev chain all three agree exactly.

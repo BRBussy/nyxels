@@ -6,3 +6,4 @@
 // generated compiler output. It also leaves a home for hand-written glue (e.g.
 // Stroke[] <-> Uint8Array helpers, typed witness factories) as the app grows.
 export * from "../managed/contract/index.js";
+export * from "./utils/dust-estimation.ts";
