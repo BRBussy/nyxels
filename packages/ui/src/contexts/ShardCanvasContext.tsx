@@ -1,13 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useConfig, type NetworkId } from "./ConfigContext";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useConfig } from "./ConfigContext";
+import type { NetworkId } from "../lib/network.ts";
 import * as SharedCanvas from "@nyxels/contract-sdk";
 import { type WitnessContext } from "@midnight-ntwrk/compact-runtime";
 import { CompiledContract } from "@midnight-ntwrk/compact-js";
-import { findDeployedContract, type ContractProviders } from "@midnight-ntwrk/midnight-js/contracts";
-import type { MidnightProviders } from "@midnight-ntwrk/midnight-js/types";
-import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
-import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
-import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+// Imports for the still-commented provider wiring below (re-enable with it):
+// import { findDeployedContract, type ContractProviders } from "@midnight-ntwrk/midnight-js/contracts";
+// import type { MidnightProviders } from "@midnight-ntwrk/midnight-js/types";
+// import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+// import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+// import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
 
 // FIXME: .....
 // Base path under which the compiled ZK assets (the contract's `keys/` and
@@ -32,14 +34,14 @@ const witnesses: SharedCanvas.Witnesses<SharedCanvasPrivateState> = {
 // dummy coin public key (32-byte hex).
 // required by the API (for zswap use cases),
 // unused in this example
-const CPK = "0".repeat(64);
+// const CPK = "0".repeat(64);
 
 interface SharedCanvasContextValue {
 
 }
 
 // FIXME... this level DB thing. Need to understand more.
-const PRIVATE_STATE_ID = "shared-canvas";
+// const PRIVATE_STATE_ID = "shared-canvas";
 
 const SharedCanvasContext = createContext<SharedCanvasContextValue | null>(null);
 
@@ -86,7 +88,7 @@ const networkAddressIdx: { [key: NetworkId]: string } = {
 // }
 
 export function SharedCanvasContextProvider({ children }: { children: ReactNode }) {
-    const { networkId } = useConfig();
+    const { config: { networkId } } = useConfig();
 
     // keep contract address in sync with network
     const [contractAddress, setContractAddress] = useState<string | null>(null);
@@ -108,8 +110,7 @@ export function SharedCanvasContextProvider({ children }: { children: ReactNode 
                 CompiledContract.withWitnesses(witnesses),
                 CompiledContract.withCompiledFileAssets(ZK_ASSETS_PATH),
             );
-
-            let providers;
+            void compiledContract; // consumed by the commented wiring below
 
             // const contract = await findDeployedContract(
             //     {},

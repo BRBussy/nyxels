@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type PointerEvent } from "react";
 
 import { StrokeLayer } from "./components/StrokeLayer.tsx";
+import { WalletSelector } from "./components/wallet/WalletSelector.tsx";
 import { SQUARE_SIZE } from "./constants.ts";
 import { coordAt, gridExtent } from "./sequence.ts";
 import { serializeStrokes } from "./serialize.ts";
@@ -246,6 +247,11 @@ export default function App() {
 
   return (
     <main className="app">
+      {/* App bar: wallet selection lives top-right, above the canvas chrome. */}
+      <div className="top-bar">
+        <WalletSelector />
+      </div>
+
       <header>
         <h1>Shared Canvas</h1>
         <p>
@@ -313,7 +319,7 @@ export default function App() {
       <div className="canvas-frame">
         <div
           ref={gridRef}
-          className={isDraw ? "grid grid--draw" : "grid"}
+          className={isDraw ? "canvas-grid canvas-grid--draw" : "canvas-grid"}
           style={{ width: dim, height: dim }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

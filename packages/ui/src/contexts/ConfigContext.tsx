@@ -2,136 +2,119 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 // midnight-js reads a process-global network id internally (unlike compact-js,
 // which takes it explicitly). We set it once here, via the umbrella package's
 // subpath so the whole app touches one resolution of midnight-js-network-id.
-import { type NetworkId as SDKNetworkId, setNetworkId as setSDKNetworkId } from "@midnight-ntwrk/midnight-js/network-id";
+import { setNetworkId as setSDKNetworkId } from "@midnight-ntwrk/midnight-js/network-id";
 
-// Midnight's network identifiers — the literal strings the SDK and Lace wallet
-// expect (e.g. `wallet.connect('preprod')`). Ordered from local development
-// through to production. Note there is no network literally named "testnet";
-// "preview" and "preprod" are the two public test networks.
-export type NetworkId = SDKNetworkId |
-    // Local standalone stack (Docker node + indexer + proof server on localhost).
-    "undeployed" |
-    // Public test network for early/breaking changes — bleeding-edge ledger.
-    "preview" |
-    // Public test network that mirrors mainnet config; the final staging step.
-    "preprod" |
-    // Production network (live, real value).
-    "mainnet";
+import { DEFAULT_NETWORK, Network, type NetworkId } from "../lib/network.ts";
 
-export type NodeConfig = {
-    indexer: string;
-    indexerWS: string;
-    node: string;
-    proofServer: string;
-};
-
-interface ConfigContextValue {
-    networkId: NetworkId;
-    setNetworkId: (networkId: NetworkId) => void;
-    nodeConfig: NodeConfig;
-    setNodeConfigIndexer: (indexer: string) => void;
-    setNodeConfigNode: (indexer: string) => void;
-    setNodeConfigProofServer: (indexer: string) => void;
+/**
+ * The set of endpoints (+ network id) a wallet needs to reach the chain. Plain
+ * data, so it can be handed to domain classes/functions by argument rather
+ * than having them reach for a global.
+ */
+export interface Config {
+  indexer: string; // indexer GraphQL over HTTP
+  indexerWS: string; // indexer GraphQL over WebSocket (subscriptions / sync)
+  node: string; // Midnight node RPC (HTTP; converted to ws:// for the facade relay)
+  proofServer: string; // proof server (ZK proof generation)
+  networkId: NetworkId; // which network these endpoints belong to
 }
 
-const defaultMainnetNodeConfig: NodeConfig = {
-    indexer: "https://indexer.mainnet.midnight.network/api/v3/graphql",
-    indexerWS: "wss://indexer.mainnet.midnight.network/api/v3/graphql/ws",
-    node: "https://rpc.mainnet.midnight.network",
-    // The proof server sees private witness data, so it is always run locally
-    // rather than against a remote host.
-    proofServer: "http://127.0.0.1:6300",
-};
+type Endpoints = Omit<Config, "networkId">;
 
-const defaultPreprodNodeConfig: NodeConfig = {
-    indexer: "https://indexer.preprod.midnight.network/api/v3/graphql",
-    indexerWS: "wss://indexer.preprod.midnight.network/api/v3/graphql/ws",
-    node: "https://rpc.preprod.midnight.network",
-    proofServer: "http://127.0.0.1:6300",
-};
+// The proof server sees private witness data, so it is always run locally
+// rather than against a remote host.
+const LOCAL_PROOF_SERVER = "http://127.0.0.1:6300";
 
-const defaultPreviewNodeConfig: NodeConfig = {
-    indexer: "https://indexer.preview.midnight.network/api/v3/graphql",
-    indexerWS: "wss://indexer.preview.midnight.network/api/v3/graphql/ws",
-    node: "https://rpc.preview.midnight.network",
-    proofServer: "http://127.0.0.1:6300",
-};
-
-// The undeployed network is the local standalone stack (Docker containers) run
-// during development — see the Midnight standalone/counter-cli configs.
-const defaultUndeployedNodeConfig: NodeConfig = {
+// Default endpoints per network. Undeployed is the local standalone stack
+// (Docker containers) run during development.
+const DEFAULT_ENDPOINTS: Record<Network, Endpoints> = {
+  [Network.Undeployed]: {
     indexer: "http://127.0.0.1:8088/api/v3/graphql",
     indexerWS: "ws://127.0.0.1:8088/api/v3/graphql/ws",
     node: "http://127.0.0.1:9944",
-    proofServer: "http://127.0.0.1:6300",
+    proofServer: LOCAL_PROOF_SERVER,
+  },
+  [Network.Preview]: {
+    indexer: "https://indexer.preview.midnight.network/api/v3/graphql",
+    indexerWS: "wss://indexer.preview.midnight.network/api/v3/graphql/ws",
+    node: "https://rpc.preview.midnight.network",
+    proofServer: LOCAL_PROOF_SERVER,
+  },
+  [Network.Preprod]: {
+    indexer: "https://indexer.preprod.midnight.network/api/v3/graphql",
+    indexerWS: "wss://indexer.preprod.midnight.network/api/v3/graphql/ws",
+    node: "https://rpc.preprod.midnight.network",
+    proofServer: LOCAL_PROOF_SERVER,
+  },
+  [Network.Mainnet]: {
+    indexer: "https://indexer.mainnet.midnight.network/api/v3/graphql",
+    indexerWS: "wss://indexer.mainnet.midnight.network/api/v3/graphql/ws",
+    node: "https://rpc.mainnet.midnight.network",
+    proofServer: LOCAL_PROOF_SERVER,
+  },
 };
+
+interface ConfigContextValue {
+  /** The full connection config for the currently-selected network. */
+  config: Config;
+  /** Switch network (resets endpoints to that network's defaults). */
+  setNetworkId: (networkId: Network) => void;
+  setIndexer: (indexer: string) => void;
+  setNode: (node: string) => void;
+  setProofServer: (proofServer: string) => void;
+}
 
 const ConfigContext = createContext<ConfigContextValue | null>(null);
 
-// Derive the indexer WebSocket URL from the indexer HTTP URL: swap the scheme to
-// ws(s) and append the "/ws" path segment the indexer expects.
+// Derive the indexer WebSocket URL from the indexer HTTP URL: swap the scheme
+// to ws(s) and append the "/ws" path segment the indexer expects.
 function indexerWSFromIndexer(indexer: string): string {
-    const url = new URL(indexer);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.pathname = `${url.pathname.replace(/\/$/, "")}/ws`;
-    return url.toString();
+  const url = new URL(indexer);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = `${url.pathname.replace(/\/$/, "")}/ws`;
+  return url.toString();
 }
 
+/**
+ * Holds the app-wide connection config in memory and owns the selected network.
+ * Mounted once at the root so the whole app shares one source of truth (via
+ * {@link useConfig}); domain classes/functions take a {@link Config} by argument.
+ */
 export function ConfigContextProvider({ children }: { children: ReactNode }) {
-    const [_networkId, _setNetworkId] = useState<NetworkId>("mainnet");
-    const [_nodeConfig, _setNodeConfig] = useState<NodeConfig>(defaultMainnetNodeConfig);
+  const [networkId, _setNetworkId] = useState<Network>(DEFAULT_NETWORK);
+  const [endpoints, setEndpoints] = useState<Endpoints>(DEFAULT_ENDPOINTS[DEFAULT_NETWORK]);
 
-    const setNetworkId = useCallback((networkId: NetworkId) => {
-        setSDKNetworkId(networkId);
-        _setNetworkId(networkId);
+  const setNetworkId = useCallback((next: Network) => {
+    setSDKNetworkId(next); // keep midnight-js's global in step (it reads it internally)
+    _setNetworkId(next);
+    setEndpoints(DEFAULT_ENDPOINTS[next]);
+  }, []);
 
-        switch (networkId) {
-            case "undeployed":
-                _setNodeConfig(defaultUndeployedNodeConfig);
-                break;
-            case "preview":
-                _setNodeConfig(defaultPreviewNodeConfig);
-                break;
-            case "preprod":
-                _setNodeConfig(defaultPreprodNodeConfig);
-                break;
-            case "mainnet":
-                _setNodeConfig(defaultMainnetNodeConfig);
-                break;
-            default:
-                throw new TypeError(`unexpected value given for networkId: ${networkId}`);
-        }
-    }, []);
+  const config = useMemo<Config>(() => ({ ...endpoints, networkId }), [endpoints, networkId]);
 
-    const value = useMemo<ConfigContextValue>(() => ({
-        networkId: _networkId,
-        setNetworkId,
-        nodeConfig: _nodeConfig,
-        setNodeConfigIndexer: (indexer: string) => _setNodeConfig((curr) => ({
-            ...curr,
-            indexer: new URL(indexer).toString(),
-            indexerWS: indexerWSFromIndexer(indexer),
+  const value = useMemo<ConfigContextValue>(
+    () => ({
+      config,
+      setNetworkId,
+      setIndexer: (indexer: string) =>
+        setEndpoints((curr) => ({
+          ...curr,
+          indexer: new URL(indexer).toString(),
+          indexerWS: indexerWSFromIndexer(indexer),
         })),
-        setNodeConfigNode: (node: string) => _setNodeConfig((curr) => ({
-            ...curr,
-            node: new URL(node).toString(),
-        })),
-        setNodeConfigProofServer: (proofServer: string) => _setNodeConfig((curr) => ({
-            ...curr,
-            proofServer: new URL(proofServer).toString(),
-        })),
-    }), [_networkId, setNetworkId, _nodeConfig]);
+      setNode: (node: string) => setEndpoints((curr) => ({ ...curr, node: new URL(node).toString() })),
+      setProofServer: (proofServer: string) =>
+        setEndpoints((curr) => ({ ...curr, proofServer: new URL(proofServer).toString() })),
+    }),
+    [config, setNetworkId],
+  );
 
-    return (
-        <ConfigContext.Provider value={value}>
-            {children}
-        </ConfigContext.Provider>
-    );
+  return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>;
 }
 
-/** Access the global config. Throws if used outside a ConfigProvider. */
+/** Access the global config. Throws if used outside a ConfigContextProvider. */
 export function useConfig(): ConfigContextValue {
   const ctx = useContext(ConfigContext);
-  if (!ctx) throw new Error("useConfig must be used within a ConfigProvider");
+  if (!ctx) throw new Error("useConfig must be used within a ConfigContextProvider");
   return ctx;
 }

@@ -8,6 +8,13 @@
   align-items: center;
 }
 
+/* Full-width row pinning the wallet selector to the top-right. */
+.top-bar {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .app header {
   text-align: center;
 }
@@ -129,17 +136,19 @@
 /* The grid is a fixed-size positioned surface; every layer below is absolutely
    placed within it. Layers paint in DOM order: white tiles → ink → grey wash →
    add-button. Adjacent active squares share one white surface and one ink layer,
-   so strokes are seamless across them. */
-.grid {
+   so strokes are seamless across them.
+   Named `canvas-grid` (not `grid`) — `grid` is a Tailwind utility, and these
+   unlayered rules would override it on every component using that class. */
+.canvas-grid {
   position: relative;
   touch-action: none;
 }
 
-.grid--draw {
+.canvas-grid--draw {
   cursor: crosshair;
 }
 
-.grid > * {
+.canvas-grid > * {
   position: absolute;
 }
 
