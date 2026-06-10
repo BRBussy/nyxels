@@ -1,15 +1,17 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useConfig } from "./ConfigContext";
-import type { NetworkId } from "../lib/network.ts";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useConfig, type Config } from "./ConfigContext";
+import { useWallets } from "./WalletContext.tsx";
+import type { Network } from "../lib/network.ts";
 import * as SharedCanvas from "@nyxels/contract-sdk";
 import { type WitnessContext } from "@midnight-ntwrk/compact-runtime";
 import { CompiledContract } from "@midnight-ntwrk/compact-js";
-// Imports for the still-commented provider wiring below (re-enable with it):
-// import { findDeployedContract, type ContractProviders } from "@midnight-ntwrk/midnight-js/contracts";
-// import type { MidnightProviders } from "@midnight-ntwrk/midnight-js/types";
-// import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
-// import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { findDeployedContract, type FoundContract } from "@midnight-ntwrk/midnight-js/contracts";
+import type { MidnightProviders } from "@midnight-ntwrk/midnight-js/types";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
 import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import type { Wallet } from "@/lib/wallet/Wallet.ts";
 
 // Base path under which the compiled ZK assets (the contract's `keys/` and
 // `zkir/` from @nyxels/contract-sdk's managed/ output) are served as static
@@ -19,16 +21,31 @@ import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-conf
 // midnight-js provider set fetches from the same base when proving.
 const ZK_ASSETS_PATH = `${import.meta.env.BASE_URL}shared-canvas`;
 
-// The contract's circuit names — what the artifact files are named after.
-const CIRCUITS = ["updateSquare", "extendCanvas"] as const;
-type Circuit = (typeof CIRCUITS)[number];
+type SharedCanvasCircuit = keyof InstanceType<typeof SharedCanvas.Contract>["provableCircuits"] & string;
 
 type SharedCanvasPrivateState = {};
+
+type SharedCanvasContract = SharedCanvas.Contract<SharedCanvasPrivateState>;
+
+type SharedCanvasWitnesses = SharedCanvas.Witnesses<SharedCanvasPrivateState>;
+
+// The key used in the levelDb to store private state
+type PrivateStateID = "shared-canvas";
+const PRIVATE_STATE_ID: PrivateStateID = "shared-canvas";
+
+type SharedCanvasProviders = MidnightProviders<
+    // CircuitKeys: type expressing list of circuit names,
+    SharedCanvasCircuit,
+    // PrivateStateID: literal of the private state storage key. Just a string but use a union with single value to enforce type safety.
+    PrivateStateID,
+    // PrivateState: shape of the contract's private state object
+    SharedCanvasPrivateState
+>;
 
 // The witness the circuits read.
 // In real use this will hook into some wallet flow to get a private
 // unique identifier from the executing user.
-const witnesses: SharedCanvas.Witnesses<SharedCanvasPrivateState> = {
+const witnesses: SharedCanvasWitnesses = {
     operatorSecretKey: ({
         privateState,
     }: WitnessContext<SharedCanvas.Ledger, SharedCanvasPrivateState>): [SharedCanvasPrivateState, Uint8Array] => {
@@ -36,139 +53,173 @@ const witnesses: SharedCanvas.Witnesses<SharedCanvasPrivateState> = {
     },
 };
 
-// dummy coin public key (32-byte hex).
-// required by the API (for zswap use cases),
-// unused in this example
-// const CPK = "0".repeat(64);
+// Built once at module scope — depends only on module constants.
+const compiledContract = CompiledContract.make<SharedCanvasContract>(
+    "shared-canvas",
+    SharedCanvas.Contract,
+).pipe(
+    CompiledContract.withWitnesses(witnesses),
+    CompiledContract.withCompiledFileAssets(ZK_ASSETS_PATH),
+);
 
-interface SharedCanvasContextValue {
+function buildProviders(
+    config: Config,
+    wallet: Wallet,
+): SharedCanvasProviders {
+    const zkConfigProvider = new FetchZkConfigProvider<SharedCanvasCircuit>(
+        new URL(ZK_ASSETS_PATH, window.location.origin).toString(),
+        window.fetch.bind(window),
+    )
 
+    return {
+        // Manages the Private State of a Contract, plus contract-maintenance signing keys.
+        // Key Methods: get(id)→PS|null, set(id, PS), remove, clear,
+        //              getSigningKey/setSigningKey (keyed by contract address),
+        //              exportPrivateStates/importPrivateStates.
+        // Storage is browser IndexedDB (via LevelDB API): clearing browser data
+        // permanently destroys it — the package itself warns against production use
+        // where loss matters. Fine here: our private state is empty and we never
+        // deploy from the browser, so no signing keys land in it either.
+        privateStateProvider: levelPrivateStateProvider({
+            // Sublevel for private states, keyed by privateStateId.
+            // Default 'private-states' (in db 'midnight-level-db').
+            // Set to prevent collision with other dApps.
+            privateStateStoreName: 'sharedcanvas-private-states',
+
+            // Sublevel for contract-maintenance signing keys, keyed by contract
+            // address; written on deployContract.
+            // Default 'signing-keys'.
+            // Set to prevent collision with other dApps.
+            signingKeyStoreName: 'sharedcanvas-signing-keys',
+
+            // Account identifier used to scope storage.
+            // This ensures data isolation between different accounts/wallets using the same database.
+            accountId: wallet.id,
+
+            // Returns the password (sync or async) used to encrypt BOTH stores.
+            // Must pass validatePassword: ≥16 chars, ≥3 of {upper,lower,digit,special},
+            // no 3+ repeated chars, no 4+ sequential runs — else
+            // PasswordValidationError at runtime.
+            // A constant in client source is obfuscation, not secrecy — acceptable
+            // here only because nothing sensitive is stored.
+            privateStoragePasswordProvider: () => "&*(BHJqwe419" + wallet.id,
+        }),
+
+        // Retrieves public data from the blockchain.
+        // Key Methods: queryContractState(addr), watchForContractState, contractStateObservable(addr)
+        publicDataProvider: indexerPublicDataProvider(
+            // query url - i.e. indexerUrl
+            config.indexer,
+            // subscription url - i.e. indexerWsUrl
+            config.indexerWS,
+        ),
+
+        // Retrieves the ZK artifacts of a contract needed to create proofs.
+        // Key Methods: getProverKey(id), getVerifierKey(id), getZKIR(id) — id is typed to PCK, i.e. just a string that is the name of the circuit
+        zkConfigProvider,
+
+        // proof provider
+        // ... should this perhaps BE the wallet?? since it already has it's own proof server config?
+        proofProvider: httpClientProofProvider(
+            // proof server url
+            config.proofServer,
+            zkConfigProvider,
+        ),
+
+        /**
+         * Creates proven, balanced transactions.
+         */
+        walletProvider: wallet,
+
+        /**
+         * Submits proven, balanced transactions to the network.
+         */
+        midnightProvider: wallet,
+    };
 }
 
-// FIXME... this level DB thing. Need to understand more.
-// const PRIVATE_STATE_ID = "shared-canvas";
+// Where the shared-canvas contract is deployed on each network.
+// An empty string means "not deployed there (yet)".
+const networkAddressIdx: Record<Network, string> = {
+    undeployed: "529e85a2a2040228b44b3ae9113cf24ca454039820639f168864cf003e7e07a8",
+    preview: "",
+    preprod: "",
+    mainnet: "",
+}
+
+interface SharedCanvasContextValue {
+    // null until found (i.e. while no wallet is selected, the contract is not
+    // deployed on the selected network, or the find is still in flight).
+    contract: FoundContract<SharedCanvasContract> | null,
+    readContractState: () => Promise<SharedCanvas.Ledger>,
+}
 
 const SharedCanvasContext = createContext<SharedCanvasContextValue | null>(null);
 
-const networkAddressIdx: { [key: NetworkId]: string } = {
-    "undeployed": "529e85a2a2040228b44b3ae9113cf24ca454039820639f168864cf003e7e07a8",
-    "preview": "",
-    "preprod": "",
-    "mainnet": "",
-}
-
-// function buildProviders(): MidnightProviders<
-//     // CircuitKeys: supposed to be a "union of circuit names from compiled contract" according to: 'https://docs.midnight.network/guides/configure-providers#the-midnightproviders-type'
-//     // but cannot find this union in "@nyxels/contract-sdk",
-//     string,
-//     // PrivateStateID: literal of the private state storage key. Just a string but use a union with single value to enforce type safety.
-//     string,
-//     // PrivateState: shape of the contract's private state object
-//     SharedCanvasPrivateState,
-// > {
-//     return {
-//         // Manages the Private State of a Contract.
-//         // Key Methods: get(id)→PS|null, set(id, PS), remove, clear
-//         privateStateProvider: levelPrivateStateProvider({
-//             privateStateStoreName: "shared-canvas-state",
-//             signingKeyStoreName: "some-signing-key-store-name",
-//             // what is this? it is not in the docs at: https://docs.midnight.network/guides/configure-providers#privatestateprovider
-//             accountId: "",
-//             privateStoragePasswordProvider: () => "random-pwd",
-//         }),
-
-//         // Retrieves public data from the blockchain.
-//         // Key Methods: queryContractState(addr), watchForContractState, contractStateObservable(addr)
-//         publicDataProvider: indexerPublicDataProvider(
-//             "", // query url - i.e. indexerUrl
-//             "", // subscription url - i.e. indexerWsUrl
-//         ),
-
-//         // Retrieves the ZK artifacts of a contract needed to create proofs.
-//         // Key Methods: getProverKey(id), getVerifierKey(id), getZKIR(id) — id is typed to PCK, i.e. just a string that is the name of the circuit
-//         zkConfigProvider: new FetchZkConfigProvider<string>('path-to-hosted-artifacts'),
-
-//         // proof provider
-//     };
-// }
-
 export function SharedCanvasContextProvider({ children }: { children: ReactNode }) {
-    const { config: { networkId } } = useConfig();
+    const { config } = useConfig();
+    const { selectedWallet } = useWallets();
 
-    // One-time smoke test on first mount: fetch every ZK artifact through a
-    // FetchZkConfigProvider and log what came back, so a broken asset path is
-    // visible in the console immediately (locally and deployed) rather than
-    // surfacing later as a failed proof. The ref guards StrictMode's
-    // double-invoke so the ~8MB of keys is only fetched once.
-    const hasVerifiedZkAssetsRef = useRef(false);
+    // Config.networkId is the SDK's bare string type, but its values always
+    // come from the app's Network union.
+    const contractAddress = networkAddressIdx[config.networkId as Network] || null;
+
+    const providers = useMemo<SharedCanvasProviders | null>(
+        () => (selectedWallet ? buildProviders(config, selectedWallet) : null),
+        [config, selectedWallet],
+    );
+
+    const [contract, setContract] = useState<FoundContract<SharedCanvasContract> | null>(null);
     useEffect(() => {
-        if (hasVerifiedZkAssetsRef.current) return;
-        hasVerifiedZkAssetsRef.current = true;
-        (async () => {
-            // The provider requires an absolute http(s) URL, so anchor the
-            // served path to the current origin. The explicit bound fetch is
-            // needed because the provider's cross-fetch default calls the
-            // native fetch unbound ("Illegal invocation" in browsers).
-            const baseURL = new URL(ZK_ASSETS_PATH, window.location.origin).toString();
-            const provider = new FetchZkConfigProvider<Circuit>(baseURL, window.fetch.bind(window));
-            console.info(`[shared-canvas] loading ZK artifacts from ${baseURL}`);
-
-            for (const circuit of CIRCUITS) {
-                const start = performance.now();
-                const [proverKey, verifierKey, zkir] = await Promise.all([
-                    provider.getProverKey(circuit),
-                    provider.getVerifierKey(circuit),
-                    provider.getZKIR(circuit),
-                ]);
-                const ms = Math.round(performance.now() - start);
-                console.info(
-                    `[shared-canvas] ${circuit}: prover ${proverKey.length} bytes, ` +
-                    `verifier ${verifierKey.length} bytes, zkir ${zkir.length} bytes (${ms}ms)`,
-                );
-            }
-            console.info("[shared-canvas] all ZK artifacts loaded ✔");
-        })().catch((e: unknown) => {
-            console.error("[shared-canvas] ZK artifact loading FAILED", e);
-        });
-    }, []);
-
-    // keep contract address in sync with network
-    const [contractAddress, setContractAddress] = useState<string | null>(null);
-    useEffect(() => {
-        const newContractAddress = networkAddressIdx[networkId];
-        if (!networkAddressIdx) {
-            throw new Error(`contract address for networkId '${networkId}' not known`);
+        setContract(null);
+        if (!contractAddress || !providers) {
+            return;
         }
-        setContractAddress(newContractAddress);
-    }, [networkId])
 
-    // reconstruct contract whenever the address changes
-    useEffect(() => {
+        // `cancelled` stops a superseded run from publishing its result after
+        // the wallet or network changed under it.
+        let cancelled = false;
         (async () => {
-            const compiledContract = CompiledContract.make(
-                "shared-canvas",
-                SharedCanvas.Contract,
-            ).pipe(
-                CompiledContract.withWitnesses(witnesses),
-                CompiledContract.withCompiledFileAssets(ZK_ASSETS_PATH),
-            );
-            void compiledContract; // consumed by the commented wiring below
-
-            // const contract = await findDeployedContract(
-            //     {},
-            //     {
-            //         contractAddress: "529e85a2a2040228b44b3ae9113cf24ca454039820639f168864cf003e7e07a8",
-            //         compiledContract,
-            //         privateStateId: PRIVATE_STATE_ID,
-            //         initialPrivateState: { localSecretKey: DEMO_SECRET_KEY },
-            //     },
-            // );
+            try {
+                const found = await findDeployedContract(
+                    providers,
+                    {
+                        contractAddress,
+                        compiledContract,
+                        privateStateId: PRIVATE_STATE_ID,
+                        initialPrivateState: {},
+                    },
+                );
+                if (!cancelled) {
+                    setContract(found);
+                }
+            } catch (e) {
+                console.error("error finding deployed contract", e);
+            }
         })();
-    }, [])
+
+        return () => {
+            cancelled = true;
+        };
+    }, [providers, contractAddress]);
+
+    const readContractState = useCallback(async () => {
+        if (!(providers && contractAddress)) {
+            throw new Error("shared canvas not initialised — a wallet and a deployed network are required before reading state");
+        }
+
+        const state = await providers.publicDataProvider.queryContractState(contractAddress)
+        if (!state) {
+            throw new Error(`no contract state found at address '${contractAddress}'`);
+        }
+
+        return SharedCanvas.ledger(state.data);
+    }, [providers, contractAddress]);
 
     const value = useMemo<SharedCanvasContextValue>(() => ({
-
-    }), [contractAddress]);
+        contract,
+        readContractState,
+    }), [contract, readContractState]);
 
     return (
         <SharedCanvasContext.Provider value={value}>
