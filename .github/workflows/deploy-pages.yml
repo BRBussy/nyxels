@@ -32,8 +32,26 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The contract's compiled output (contract-sdk/managed/) is generated,
+      # not committed, so every deploy compiles it fresh from source. The
+      # compile script pins the toolchain (+0.31.0) and the CLI downloads it
+      # on first use; the cache skips that download on later runs.
+      - name: Cache Compact toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.compact
+          key: compact-toolchain-0.31.0
+
+      - name: Install Compact CLI
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Install workspace dependencies
         run: npm ci
+
+      - name: Compile contract
+        run: npm run compile
 
       - name: Build UI
         run: npm run build --workspace @nyxels/ui -- --base=/${{ github.event.repository.name }}/

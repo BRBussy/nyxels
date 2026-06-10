@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Compact source for the Nyxels shared-canvas contract. Compiles into @nyxels/contract-sdk.",
   "scripts": {
-    "compile": "compact compile src/shared-canvas.compact ../contract-sdk/managed",
+    "compile": "compact compile +0.31.0 src/shared-canvas.compact ../contract-sdk/managed",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
