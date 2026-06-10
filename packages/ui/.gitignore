@@ -3,6 +3,10 @@ dist
 dist-ssr
 *.local
 
+# ZK artifacts copied from @nyxels/contract-sdk managed/ by copy-zk-assets
+# (predev/prebuild) — managed/ is the committed source of truth.
+public/shared-canvas/
+
 # Editor / OS
 .DS_Store
 .vscode/*

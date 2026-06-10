@@ -5,7 +5,10 @@
   "type": "module",
   "description": "Nyxels UI — a freehand shared-canvas SPA (Vite + React + TypeScript).",
   "scripts": {
+    "copy-zk-assets": "node scripts/copy-zk-assets.mjs",
+    "predev": "npm run copy-zk-assets",
     "dev": "vite",
+    "prebuild": "npm run copy-zk-assets",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",

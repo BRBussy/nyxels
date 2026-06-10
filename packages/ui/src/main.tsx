@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ConfigContextProvider } from "./contexts/ConfigContext.tsx";
 import { WalletContextProvider } from "./contexts/WalletContext.tsx";
+import { SharedCanvasContextProvider } from "./contexts/ShardCanvasContext.tsx";
 
 import App from "./App.tsx";
 import "./index.css";
@@ -13,7 +14,9 @@ createRoot(root).render(
   <StrictMode>
     <ConfigContextProvider>
       <WalletContextProvider>
-        <App />
+        <SharedCanvasContextProvider>
+          <App />
+        </SharedCanvasContextProvider>
       </WalletContextProvider>
     </ConfigContextProvider>
   </StrictMode>,

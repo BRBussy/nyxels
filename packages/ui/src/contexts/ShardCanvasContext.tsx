@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useConfig } from "./ConfigContext";
 import type { NetworkId } from "../lib/network.ts";
 import * as SharedCanvas from "@nyxels/contract-sdk";
@@ -9,14 +9,19 @@ import { CompiledContract } from "@midnight-ntwrk/compact-js";
 // import type { MidnightProviders } from "@midnight-ntwrk/midnight-js/types";
 // import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
 // import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
-// import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
 
-// FIXME: .....
 // Base path under which the compiled ZK assets (the contract's `keys/` and
 // `zkir/` from @nyxels/contract-sdk's managed/ output) are served as static
-// files. compact-js records this path; the matching FetchZkConfigProvider in
-// the midnight-js provider set fetches from the same base when proving.
-const ZK_ASSETS_PATH = "/shared-canvas";
+// files — copy-zk-assets puts them in public/shared-canvas/, and BASE_URL
+// covers the GitHub Pages subpath ("/" locally, "/nyxels/" deployed).
+// compact-js records this path; the matching FetchZkConfigProvider in the
+// midnight-js provider set fetches from the same base when proving.
+const ZK_ASSETS_PATH = `${import.meta.env.BASE_URL}shared-canvas`;
+
+// The contract's circuit names — what the artifact files are named after.
+const CIRCUITS = ["updateSquare", "extendCanvas"] as const;
+type Circuit = (typeof CIRCUITS)[number];
 
 type SharedCanvasPrivateState = {};
 
@@ -89,6 +94,43 @@ const networkAddressIdx: { [key: NetworkId]: string } = {
 
 export function SharedCanvasContextProvider({ children }: { children: ReactNode }) {
     const { config: { networkId } } = useConfig();
+
+    // One-time smoke test on first mount: fetch every ZK artifact through a
+    // FetchZkConfigProvider and log what came back, so a broken asset path is
+    // visible in the console immediately (locally and deployed) rather than
+    // surfacing later as a failed proof. The ref guards StrictMode's
+    // double-invoke so the ~8MB of keys is only fetched once.
+    const hasVerifiedZkAssetsRef = useRef(false);
+    useEffect(() => {
+        if (hasVerifiedZkAssetsRef.current) return;
+        hasVerifiedZkAssetsRef.current = true;
+        (async () => {
+            // The provider requires an absolute http(s) URL, so anchor the
+            // served path to the current origin. The explicit bound fetch is
+            // needed because the provider's cross-fetch default calls the
+            // native fetch unbound ("Illegal invocation" in browsers).
+            const baseURL = new URL(ZK_ASSETS_PATH, window.location.origin).toString();
+            const provider = new FetchZkConfigProvider<Circuit>(baseURL, window.fetch.bind(window));
+            console.info(`[shared-canvas] loading ZK artifacts from ${baseURL}`);
+
+            for (const circuit of CIRCUITS) {
+                const start = performance.now();
+                const [proverKey, verifierKey, zkir] = await Promise.all([
+                    provider.getProverKey(circuit),
+                    provider.getVerifierKey(circuit),
+                    provider.getZKIR(circuit),
+                ]);
+                const ms = Math.round(performance.now() - start);
+                console.info(
+                    `[shared-canvas] ${circuit}: prover ${proverKey.length} bytes, ` +
+                    `verifier ${verifierKey.length} bytes, zkir ${zkir.length} bytes (${ms}ms)`,
+                );
+            }
+            console.info("[shared-canvas] all ZK artifacts loaded ✔");
+        })().catch((e: unknown) => {
+            console.error("[shared-canvas] ZK artifact loading FAILED", e);
+        });
+    }, []);
 
     // keep contract address in sync with network
     const [contractAddress, setContractAddress] = useState<string | null>(null);
