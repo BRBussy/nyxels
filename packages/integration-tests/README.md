@@ -51,6 +51,10 @@ Integration tests are configured with the following environment variables. Overr
 # Seed used for deployments and wallet interactions
 SEED=0000000000000000000000000000000000000000000000000000000000000001
 
+# Address of contract. Blank by default, populate if contract already deployed and only interaction tests are being done.
+# Populated by the deploy-test.test.ts for subsequent tests to use from the environment. So ensure that runs first (at least once).
+CONTRACT_ADDRESS=
+
 # Local stack used by default. These are the endpoints.
 NETWORK_ID=undeployed
 INDEXER_URL=http://127.0.0.1:8088/api/v3/graphql
