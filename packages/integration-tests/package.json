@@ -1,0 +1,43 @@
+{
+  "name": "@nyxels/integration-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Integration tests for the Nyxels shared-canvas contract against a real Midnight stack.",
+  "scripts": {
+    "test": "npm run test:environment && npm run test:compile && npm run test:account && npm run test:deploy && npm run test:extend-canvas && npm run test:update-square",
+    "test:environment": "vitest run src/tests/1-environment.test.ts",
+    "test:compile": "vitest run src/tests/2-compile.test.ts",
+    "test:account": "vitest run src/tests/3-account.test.ts",
+    "test:deploy": "vitest run src/tests/4-deploy.test.ts",
+    "test:extend-canvas": "vitest run src/tests/5-interactions/extend-canvas.test.ts",
+    "test:update-square": "vitest run src/tests/5-interactions/update-square.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-js": "^2.5.1",
+    "@midnight-ntwrk/compact-js-node": "^2.5.1",
+    "@midnight-ntwrk/compact-runtime": "^0.16.0",
+    "@midnight-ntwrk/ledger-v8": "^8.0.3",
+    "@midnight-ntwrk/midnight-js": "^4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "^4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "^4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "^4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "^4.1.1",
+    "@midnight-ntwrk/wallet-sdk-abstractions": "^2.1.0",
+    "@midnight-ntwrk/wallet-sdk-address-format": "^3.1.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "^4.1.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "^4.0.1",
+    "@midnight-ntwrk/wallet-sdk-hd": "^3.0.1",
+    "@midnight-ntwrk/wallet-sdk-shielded": "^3.0.1",
+    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "^3.1.0",
+    "@nyxels/contract-sdk": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

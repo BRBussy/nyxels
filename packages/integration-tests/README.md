@@ -33,8 +33,9 @@ packages/
 ├─ contract/             # Compact source under test
 ├─ contract-sdk/         # compiled contract (managed/ artifacts) under test
 └─ integration-tests/    # this package
-    ├─ package.json      # the only entry point: npm test / npm run test:<step>
+    ├─ package.json      # the only entry point: npm test / npm run test:<name>
     ├─ tsconfig.json
+    ├─ vitest.config.ts  # forks pool, no file parallelism, generous timeouts (proving is slow)
     ├─ .env.example      # optional overrides — every var except CONTRACT_ADDRESS has a default
     ├─ .contract-address # gitignored; written by the deploy test, read by later tests
     └─ src/
