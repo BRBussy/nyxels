@@ -85,16 +85,21 @@
   }
 }
 
-/* ── App base styles (pre-Tailwind; unlayered so they win over preflight) ── */
+/* ── App base styles (unlayered so they win over preflight) ──────────────
+   Colors come from the shadcn variables (body gets bg-background /
+   text-foreground in the base layer above), so the light/dark switch — the
+   `dark` class on <html>, toggled by ThemeToggle — restyles everything. */
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #1a1a1f;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+
+.dark {
+  color-scheme: dark;
 }
 
 * {

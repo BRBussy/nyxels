@@ -1,3 +1,44 @@
+/* Theme-aware colors: everything derives from the shadcn variables
+   (--background / --foreground / --border), so the light/dark switch restyles
+   the whole page. Translucent tints are mixed from --foreground. */
+
+/* ---- App bar ---- */
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.55rem 1rem;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The two sides flex equally so the mode switcher sits dead-centre. */
+.app-bar-side {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.app-bar-side--end {
+  justify-content: flex-end;
+  gap: 0.9rem;
+}
+
+.app-logo {
+  width: 22px;
+  height: 22px;
+}
+
+.app-name {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* ---- Page ---- */
 .app {
   max-width: 100%;
   margin: 0 auto;
@@ -8,21 +49,8 @@
   align-items: center;
 }
 
-/* Full-width row pinning the wallet selector to the top-right. */
-.top-bar {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-}
-
 .app header {
   text-align: center;
-}
-
-.app h1 {
-  margin: 0 0 0.25rem;
-  font-size: 2rem;
-  letter-spacing: -0.02em;
 }
 
 .app header p {
@@ -31,17 +59,27 @@
   font-size: 0.95rem;
 }
 
-/* ---- Toolbar ---- */
-.toolbar {
+/* ---- Tool palette (floating, left) ---- */
+.palette {
+  position: fixed;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 0.8rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--background);
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
 }
 
 .group {
   display: flex;
+  flex-direction: column;
   gap: 0.4rem;
   align-items: center;
 }
@@ -60,14 +98,14 @@
 }
 
 .swatch[aria-pressed="true"] {
-  border-color: #fff;
+  border-color: var(--foreground);
   transform: scale(1.18);
 }
 
-/* Mode toggle (Draw / View) */
+/* Mode toggle (Draw / View), centred in the app bar */
 .modes {
   display: inline-flex;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -81,7 +119,7 @@
 }
 
 .mode-btn:not([aria-pressed="true"]):hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
 .mode-btn[aria-pressed="true"] {
@@ -89,10 +127,15 @@
   color: #fff;
 }
 
+.mode-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .size-btn,
 .action {
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border);
   background: transparent;
   color: inherit;
   font-size: 0.85rem;
@@ -105,11 +148,12 @@
 
 .action {
   padding: 0.4rem 0.7rem;
+  width: 100%;
 }
 
 .size-btn:hover,
 .action:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
 .size-btn[aria-pressed="true"] {
@@ -125,10 +169,10 @@
 
 /* ---- Canvas ---- */
 .canvas-frame {
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  border: 2px solid var(--border);
   border-radius: 10px;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in oklab, var(--foreground) 3%, transparent);
   overflow: auto;
   max-width: 100%;
 }
@@ -152,8 +196,11 @@
   position: absolute;
 }
 
+/* The paper is white in both themes — ink colors are picked against it. The
+   faint inset ring keeps tile edges visible on a light background. */
 .tile {
   background: #fafafa;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent);
   pointer-events: none;
 }
 
@@ -173,9 +220,9 @@
 .add-square {
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.02);
-  border: 2px dashed rgba(255, 255, 255, 0.35);
-  color: rgba(255, 255, 255, 0.5);
+  background: color-mix(in oklab, var(--foreground) 2%, transparent);
+  border: 2px dashed color-mix(in oklab, var(--foreground) 35%, transparent);
+  color: color-mix(in oklab, var(--foreground) 50%, transparent);
   font-size: 2.5rem;
   font-weight: 300;
   line-height: 1;
@@ -205,7 +252,7 @@
 
 .sizes th,
 .sizes td {
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent);
   padding: 0.35rem 0.85rem;
   text-align: left;
 }
@@ -223,6 +270,6 @@
 }
 
 .sizes tfoot td {
-  border-top: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid color-mix(in oklab, var(--foreground) 30%, transparent);
   font-weight: 600;
 }

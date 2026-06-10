@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useWallets } from "@/contexts/WalletContext";
+import { AppBar, Mode } from "./components/AppBar.tsx";
 import { StrokeLayer } from "./components/StrokeLayer.tsx";
-import { WalletSelector } from "./components/wallet/WalletSelector.tsx";
 import { SQUARE_SIZE } from "./constants.ts";
 import { coordAt, gridExtent } from "./sequence.ts";
 import { serializeStrokes } from "./serialize.ts";
@@ -12,7 +14,6 @@ import "./App.css";
 // Pointer movement (px) above which a press is treated as a draw, not a tap.
 const TAP_SLOP = 4;
 
-type Mode = "draw" | "view";
 // One contiguous run of points within a single square, during a live gesture.
 interface LiveSegment {
   index: number;
@@ -34,9 +35,17 @@ function freshCanvas(): Square[] {
 }
 
 export default function App() {
+  const { selectedWallet } = useWallets();
+
   // In-memory only — the canvas is not persisted, so a reload starts fresh.
   const [squares, setSquares] = useState<Square[]>(freshCanvas);
-  const [mode, setMode] = useState<Mode>("draw");
+  const [mode, setMode] = useState<Mode>(Mode.View);
+
+  // Drawing requires a selected wallet (the app bar gates entering Draw); if
+  // the selection goes away while drawing, drop back to View.
+  useEffect(() => {
+    if (!selectedWallet && mode === Mode.Draw) setMode(Mode.View);
+  }, [selectedWallet, mode]);
   // Indices of the squares currently active (drawable). Multiple at once.
   const [active, setActive] = useState<Set<number>>(() => new Set([0]));
   const [color, setColor] = useState<string>(PALETTE[0]);
@@ -67,7 +76,7 @@ export default function App() {
   }, [squares]);
 
   // Grid must fit every square, plus the "add" placeholder while in draw mode.
-  const gridSize = gridExtent(squares.length + (mode === "draw" ? 1 : 0));
+  const gridSize = gridExtent(squares.length + (mode === Mode.Draw ? 1 : 0));
   const [nextX, nextY] = coordAt(squares.length);
 
   // Bottom-left origin: y grows UP, so a higher y maps to a smaller (0-based) row.
@@ -96,7 +105,7 @@ export default function App() {
   // --- Pointer handling (grid-level, so strokes can cross squares) -----------
   const handlePointerDown = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
-      if (mode !== "draw") return;
+      if (mode !== Mode.Draw) return;
       if ((e.target as HTMLElement).closest(".add-square")) return; // + handles itself
 
       gestureRef.current = { x0: e.clientX, y0: e.clientY, moved: false };
@@ -148,7 +157,7 @@ export default function App() {
       } catch {
         /* ignore */
       }
-      if (mode !== "draw" || !g) {
+      if (mode !== Mode.Draw || !g) {
         setLiveBoth([]);
         return;
       }
@@ -225,7 +234,7 @@ export default function App() {
     setUndoStack([]);
   }, []);
 
-  const isDraw = mode === "draw";
+  const isDraw = mode === Mode.Draw;
   const hasActiveInk = squares.some((sq, i) => active.has(i) && sq.strokes.length > 0);
   const dim = gridSize * SQUARE_SIZE;
 
@@ -246,157 +255,151 @@ export default function App() {
   const kb = (bytes: number) => (bytes / 1024).toFixed(3);
 
   return (
-    <main className="app">
-      {/* App bar: wallet selection lives top-right, above the canvas chrome. */}
-      <div className="top-bar">
-        <WalletSelector />
-      </div>
+    <>
+      <AppBar mode={mode} onModeChange={setMode} />
 
-      <header>
-        <h1>Shared Canvas</h1>
-        <p>
-          {isDraw
-            ? "Tap squares to (de)activate them, then drag to draw — strokes flow across active squares."
-            : "Viewing the canvas. Switch to Draw to edit."}
-        </p>
-      </header>
+      {/* Floating tool palette, only while drawing. */}
+      {isDraw && (
+        <aside className="palette" role="toolbar" aria-label="Drawing tools">
+          <div className="group" aria-label="Color">
+            {PALETTE.map((swatch) => (
+              <button
+                key={swatch}
+                type="button"
+                className="swatch"
+                style={{ background: swatch }}
+                aria-label={`Color ${swatch}`}
+                aria-pressed={color === swatch}
+                onClick={() => setColor(swatch)}
+              />
+            ))}
+          </div>
 
-      <div className="toolbar" role="toolbar" aria-label="Tools">
-        <div className="modes" role="group" aria-label="Mode">
-          <button type="button" className="mode-btn" aria-pressed={isDraw} onClick={() => setMode("draw")}>
-            Draw
-          </button>
-          <button type="button" className="mode-btn" aria-pressed={!isDraw} onClick={() => setMode("view")}>
-            View
-          </button>
-        </div>
-
-        {isDraw && (
-          <>
-            <div className="group" aria-label="Color">
-              {PALETTE.map((swatch) => (
-                <button
-                  key={swatch}
-                  type="button"
-                  className="swatch"
-                  style={{ background: swatch }}
-                  aria-label={`Color ${swatch}`}
-                  aria-pressed={color === swatch}
-                  onClick={() => setColor(swatch)}
-                />
-              ))}
-            </div>
-
-            <div className="group" aria-label="Brush size">
-              {SIZES.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  className="size-btn"
-                  aria-pressed={size === s.value}
-                  onClick={() => setSize(s.value)}
+          <div className="group" aria-label="Brush size">
+            {SIZES.map((s) => (
+              <Tooltip key={s.value}>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="size-btn"
+                      aria-pressed={size === s.value}
+                      onClick={() => setSize(s.value)}
+                    />
+                  }
                 >
                   {s.label}
-                </button>
-              ))}
-            </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">Change stroke width to {s.value}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
 
-            <div className="group">
-              <button type="button" className="action" onClick={undo} disabled={undoStack.length === 0}>
-                Undo
-              </button>
-              <button type="button" className="action" onClick={clearActive} disabled={!hasActiveInk}>
-                Clear active
-              </button>
-              <button type="button" className="action" onClick={resetCanvas}>
-                Reset
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="canvas-frame">
-        <div
-          ref={gridRef}
-          className={isDraw ? "canvas-grid canvas-grid--draw" : "canvas-grid"}
-          style={{ width: dim, height: dim }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-        >
-          {/* White paper tiles, one per square (bottom layer). */}
-          {squares.map((sq) => (
-            <div
-              key={`t${coordKey(sq.x, sq.y)}`}
-              className="tile"
-              style={{ left: colOf(sq.x) * SQUARE_SIZE, top: rowOf(sq.y) * SQUARE_SIZE, width: SQUARE_SIZE, height: SQUARE_SIZE }}
-            />
-          ))}
-
-          {/* All ink, on one seamless overlay. */}
-          <StrokeLayer squares={squares} gridSize={gridSize} live={live} liveColor={color} liveSize={size} />
-
-          {/* Grey wash over inactive squares (draw mode), above the ink. */}
-          {isDraw &&
-            squares.map((sq, i) =>
-              active.has(i) ? null : (
-                <div
-                  key={`d${coordKey(sq.x, sq.y)}`}
-                  className="dim"
-                  style={{ left: colOf(sq.x) * SQUARE_SIZE, top: rowOf(sq.y) * SQUARE_SIZE, width: SQUARE_SIZE, height: SQUARE_SIZE }}
-                />
-              ),
-            )}
-
-          {/* Add-next placeholder (top layer, clickable). */}
-          {isDraw && (
-            <button
-              type="button"
-              className="add-square"
-              style={{ left: colOf(nextX) * SQUARE_SIZE, top: rowOf(nextY) * SQUARE_SIZE, width: SQUARE_SIZE, height: SQUARE_SIZE }}
-              aria-label={`Add square at ${nextX}, ${nextY}`}
-              title={`Add square at [${nextX}, ${nextY}]`}
-              onClick={addSquare}
-            >
-              +
+          <div className="group">
+            <button type="button" className="action" onClick={undo} disabled={undoStack.length === 0}>
+              Undo
             </button>
-          )}
+            <button type="button" className="action" onClick={clearActive} disabled={!hasActiveInk}>
+              Clear
+            </button>
+            <button type="button" className="action" onClick={resetCanvas}>
+              Reset
+            </button>
+          </div>
+        </aside>
+      )}
+
+      <main className="app">
+        <header>
+          <p>
+            {isDraw
+              ? "Tap squares to (de)activate them, then drag to draw — strokes flow across active squares."
+              : "Viewing the canvas. Switch to Draw to edit."}
+          </p>
+        </header>
+
+        <div className="canvas-frame">
+          <div
+            ref={gridRef}
+            className={isDraw ? "canvas-grid canvas-grid--draw" : "canvas-grid"}
+            style={{ width: dim, height: dim }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+          >
+            {/* White paper tiles, one per square (bottom layer). */}
+            {squares.map((sq) => (
+              <div
+                key={`t${coordKey(sq.x, sq.y)}`}
+                className="tile"
+                style={{ left: colOf(sq.x) * SQUARE_SIZE, top: rowOf(sq.y) * SQUARE_SIZE, width: SQUARE_SIZE, height: SQUARE_SIZE }}
+              />
+            ))}
+
+            {/* All ink, on one seamless overlay. */}
+            <StrokeLayer squares={squares} gridSize={gridSize} live={live} liveColor={color} liveSize={size} />
+
+            {/* Grey wash over inactive squares (draw mode), above the ink. */}
+            {isDraw &&
+              squares.map((sq, i) =>
+                active.has(i) ? null : (
+                  <div
+                    key={`d${coordKey(sq.x, sq.y)}`}
+                    className="dim"
+                    style={{ left: colOf(sq.x) * SQUARE_SIZE, top: rowOf(sq.y) * SQUARE_SIZE, width: SQUARE_SIZE, height: SQUARE_SIZE }}
+                  />
+                ),
+              )}
+
+            {/* Add-next placeholder (top layer, clickable). */}
+            {isDraw && (
+              <button
+                type="button"
+                className="add-square"
+                style={{ left: colOf(nextX) * SQUARE_SIZE, top: rowOf(nextY) * SQUARE_SIZE, width: SQUARE_SIZE, height: SQUARE_SIZE }}
+                aria-label={`Add square at ${nextX}, ${nextY}`}
+                title={`Add square at [${nextX}, ${nextY}]`}
+                onClick={addSquare}
+              >
+                +
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <footer>
-        {mode.toUpperCase()} · {squares.length} square{squares.length === 1 ? "" : "s"}
-        {isDraw && ` · ${active.size} active · next: [${nextX}, ${nextY}]`}
-      </footer>
+        <footer>
+          {mode.toUpperCase()} · {squares.length} square{squares.length === 1 ? "" : "s"}
+          {isDraw && ` · ${active.size} active · next: [${nextX}, ${nextY}]`}
+        </footer>
 
-      <table className="sizes">
-        <thead>
-          <tr>
-            <th>square coordinates</th>
-            <th>no. strokes</th>
-            <th>serialised strokes size [kb]</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sizes.map((s) => (
-            <tr key={coordKey(s.x, s.y)}>
-              <td>
-                [{s.x}, {s.y}]
-              </td>
-              <td>{s.count}</td>
-              <td>{kb(s.bytes)}</td>
+        <table className="sizes">
+          <thead>
+            <tr>
+              <th>square coordinates</th>
+              <th>no. strokes</th>
+              <th>serialised strokes size [kb]</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td>total</td>
-            <td>{totalStrokes}</td>
-            <td>{kb(totalBytes)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </main>
+          </thead>
+          <tbody>
+            {sizes.map((s) => (
+              <tr key={coordKey(s.x, s.y)}>
+                <td>
+                  [{s.x}, {s.y}]
+                </td>
+                <td>{s.count}</td>
+                <td>{kb(s.bytes)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>total</td>
+              <td>{totalStrokes}</td>
+              <td>{kb(totalBytes)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </main>
+    </>
   );
 }

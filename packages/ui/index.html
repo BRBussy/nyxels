@@ -1,9 +1,15 @@
 <!doctype html>
-<!-- The app is dark-only for now; .dark drives the shadcn component theme. -->
+<!-- Dark by default; the pre-paint script below restores a saved "light"
+     choice before first render (ThemeToggle owns the switch + storage). -->
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      try {
+        if (localStorage.getItem("nyxels:theme") === "light") document.documentElement.classList.remove("dark");
+      } catch {}
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%233b82f6'/%3E%3Cpath d='M4 11 Q6 4 8 8 T12 6' stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
