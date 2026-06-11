@@ -1,0 +1,7 @@
+# Written by the deploy test; read by the method tests (see README).
+.contract-address
+
+# Local private-state store created by midnight-js's level provider.
+midnight-level-db/
+
+.env

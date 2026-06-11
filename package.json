@@ -12,6 +12,7 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev": "npm run dev --workspace @nyxels/ui",
-    "compile": "npm run compile --workspace @nyxels/contract"
+    "compile": "npm run compile --workspace @nyxels/contract",
+    "deploy": "npm run deploy --workspace @nyxels/deploy"
   }
 }
