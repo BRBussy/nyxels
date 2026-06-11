@@ -37,11 +37,5 @@ export const config: Config = {
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-/** Where the deploy test persists the deployed contract's address. */
-export const contractAddressFile: string = path.join(packageRoot, ".contract-address");
-
-/** Root of the @nyxels/contract package (the Compact source under test). */
-export const contractPackageDir: string = path.resolve(packageRoot, "..", "contract");
-
 /** The compiler output the SDK + proof providers read (managed/ in contract-sdk). */
-export const zkConfigPath: string = path.resolve(packageRoot, "..", "contract-sdk", "managed");
+export const zkConfigPath: string = path.resolve(packageRoot, "contract-sdk", "managed");

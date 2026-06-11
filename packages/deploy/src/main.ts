@@ -42,7 +42,6 @@ async function main() {
     console.log(`deployed shared-canvas at ${address} (tx ${deployed.deployTxData.public.txId})`);
 }
 
-
 main()
 .catch((e) => {
     console.error("error deploying contract", e);
