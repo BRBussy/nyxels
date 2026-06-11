@@ -9,7 +9,7 @@
 //
 // Dedup is by the normalised hex form of the seed (see {@link SeedWallet.seedHex})
 // so the same seed supplied as a mnemonic and as hex never persists twice.
-import { parseSeed } from "@/lib/key/parseSeed";
+import { parseSeed } from "@nyxels/lib";
 
 const STORAGE_KEY = "nyxels:seed-wallets";
 

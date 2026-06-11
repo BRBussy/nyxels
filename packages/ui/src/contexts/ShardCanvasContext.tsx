@@ -108,10 +108,10 @@ function buildProviders(
         // Retrieves public data from the blockchain.
         // Key Methods: queryContractState(addr), watchForContractState, contractStateObservable(addr)
         publicDataProvider: indexerPublicDataProvider(
-            // query url - i.e. indexerUrl
-            config.indexer,
-            // subscription url - i.e. indexerWsUrl
-            config.indexerWS,
+            // query url
+            config.indexerUrl,
+            // subscription url
+            config.indexerWsUrl,
         ),
 
         // Retrieves the ZK artifacts of a contract needed to create proofs.
@@ -122,7 +122,7 @@ function buildProviders(
         // ... should this perhaps BE the wallet?? since it already has it's own proof server config?
         proofProvider: httpClientProofProvider(
             // proof server url
-            config.proofServer,
+            config.proofServerUrl,
             zkConfigProvider,
         ),
 

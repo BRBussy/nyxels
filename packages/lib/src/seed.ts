@@ -6,7 +6,7 @@ import { wordlist as english } from "@scure/bip39/wordlists/english.js";
 
 const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 
-/** How the input seed was supplied. (Const object + union — see lib/network.ts.) */
+/** How the input seed was supplied. (Const object + union — see network.ts.) */
 export const SeedFormat = {
   Mnemonic: "mnemonic",
   Hex: "hex",

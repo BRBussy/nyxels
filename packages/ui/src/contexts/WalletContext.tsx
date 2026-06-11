@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { parseSeed } from "@/lib/key/parseSeed";
+import { parseSeed } from "@nyxels/lib";
 import { WalletSource, type Wallet } from "@/lib/wallet/Wallet";
 import { SeedWallet } from "@/lib/wallet/SeedWallet";
 import { BrowserWallet } from "@/lib/wallet/BrowserWallet";

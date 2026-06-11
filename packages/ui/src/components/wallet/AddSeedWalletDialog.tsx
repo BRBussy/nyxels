@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { generateMnemonic } from "@/lib/key/parseSeed";
+import { generateMnemonic } from "@nyxels/lib";
 import { useWallets } from "@/contexts/WalletContext";
 
 interface AddSeedWalletDialogProps {

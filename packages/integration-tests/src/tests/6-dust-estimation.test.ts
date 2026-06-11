@@ -13,7 +13,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { config, resolveContractAddress, seed } from "../lib/config";
 import { joinSharedCanvas, type JoinedSharedCanvas } from "../lib/contract";
-import { buildWallet, COST_PARAMETERS, type Wallet } from "../lib/wallet";
+import { COST_PARAMETERS } from "@nyxels/lib";
+import { buildWallet, type Wallet } from "../lib/wallet";
 
 // estimate vs the fee the wallet actually attaches: both derive from the same
 // ledger fee model, differing only via the wallet's dry-run on a

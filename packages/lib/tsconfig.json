@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // URL is used for endpoint manipulation; it lives in the DOM lib but is
+    // universal (browser + Node 18+), like contract-sdk's use of fetch.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"]
+}

@@ -28,6 +28,8 @@ import type {
   DesiredOutput,
   HistoryEntry,
 } from "@midnight-ntwrk/dapp-connector-api";
+import type { UnboundTransaction } from "@midnight-ntwrk/midnight-js/types";
+import * as ledger from "@midnight-ntwrk/ledger-v8";
 
 import type { NetworkId } from "@/lib/network";
 import type { Config } from "@/contexts/ConfigContext";
@@ -89,27 +91,6 @@ interface Connected {
 }
 
 export class BrowserWallet implements Wallet {
-  readonly source: WalletSource = WalletSource.BrowserWallet;
-
-  private readonly config: Config;
-  private readonly walletKey: string;
-  private connected?: Connected;
-  // In-flight connect, so concurrent / StrictMode-double calls share one prompt
-  // instead of racing two `injected.connect()` calls.
-  private connecting?: Promise<void>;
-
-  /**
-   * @param config     app config; `config.networkId` is passed to the wallet as
-   *                   the desired-network hint on connect
-   * @param walletKey  the `window.midnight` key of the injected wallet to use —
-   *                   an opaque per-install id, obtained from {@link available}
-   *                   (never hardcoded; see the file header)
-   */
-  constructor(config: Config, walletKey: string) {
-    this.config = config;
-    this.walletKey = walletKey;
-  }
-
   /** Connect to the injected wallet identified by `walletKey` in one call. */
   static async Connect(config: Config, walletKey: string): Promise<BrowserWallet> {
     const wallet = new BrowserWallet(config, walletKey);
@@ -133,6 +114,57 @@ export class BrowserWallet implements Wallet {
       icon: api.icon,
       apiVersion: api.apiVersion,
     }));
+  }
+
+  readonly source: WalletSource = WalletSource.BrowserWallet;
+
+  private readonly config: Config;
+  private readonly walletKey: string;
+  private connected?: Connected;
+  // In-flight connect, so concurrent / StrictMode-double calls share one prompt
+  // instead of racing two `injected.connect()` calls.
+  private connecting?: Promise<void>;
+
+  /**
+   * @param config     app config; `config.networkId` is passed to the wallet as
+   *                   the desired-network hint on connect
+   * @param walletKey  the `window.midnight` key of the injected wallet to use —
+   *                   an opaque per-install id, obtained from {@link available}
+   *                   (never hardcoded; see the file header)
+   */
+  constructor(config: Config, walletKey: string) {
+    this.config = config;
+    this.walletKey = walletKey;
+  }
+
+  /**
+   * Balances a transaction
+   * @param tx The transaction to balance.
+   * @param ttl
+   * 
+   * NOTE: for MidnightProvider interface implementation.
+   */
+  balanceTx(tx: UnboundTransaction, ttl?: Date): Promise<ledger.FinalizedTransaction> {
+    throw new Error("Method not implemented.");
+  }
+
+  getCoinPublicKey(): ledger.CoinPublicKey {
+    throw new Error("Method not implemented.");
+  }
+
+  getEncryptionPublicKey(): ledger.EncPublicKey {
+    throw new Error("Method not implemented.");
+  }
+
+  /**
+   * Submit a transaction to the network to be consensed upon.
+   * @param tx The finalized transaction to submit.
+   * @returns The transaction identifier of the submitted transaction.
+   * 
+   * NOTE: for MidnightProvider interface implementation.
+   */
+  submitTx(tx: ledger.FinalizedTransaction): Promise<ledger.TransactionId> {
+    throw new Error("Method not implemented.");
   }
 
   /**

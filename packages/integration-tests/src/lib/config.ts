@@ -5,6 +5,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+// The Config shape (and per-network endpoint defaults) are shared with the UI
+// via @nyxels/lib; this module layers the env-var overrides on top.
+import { DEFAULT_ENDPOINTS, Network, type Config } from "@nyxels/lib";
 
 try {
   // Node 22+: load .env from CWD into process.env. Optional — defaults below
@@ -20,26 +23,17 @@ function env(name: string, defaultValue: string): string {
   return value && value.trim().length > 0 ? value.trim() : defaultValue;
 }
 
-/**
- * Connection config — everything needed to talk to one Midnight stack. The
- * `seed` is intentionally NOT part of this: a config describes a *network*,
- * while a seed identifies a *wallet*.
- */
-export interface Config {
-  readonly networkId: string;
-  readonly indexerUrl: string;
-  readonly indexerWsUrl: string;
-  readonly nodeUrl: string;
-  readonly proofServerUrl: string;
-}
+export type { Config };
+
+const LOCAL = DEFAULT_ENDPOINTS[Network.Undeployed];
 
 /** The configured stack — local docker stack unless overridden. */
 export const config: Config = {
-  networkId: env("NETWORK_ID", "undeployed"),
-  indexerUrl: env("INDEXER_URL", "http://127.0.0.1:8088/api/v3/graphql"),
-  indexerWsUrl: env("INDEXER_WS_URL", "ws://127.0.0.1:8088/api/v3/graphql/ws"),
-  nodeUrl: env("NODE_URL", "http://127.0.0.1:9944"),
-  proofServerUrl: env("PROOF_SERVER_URL", "http://127.0.0.1:6300"),
+  networkId: env("NETWORK_ID", Network.Undeployed),
+  indexerUrl: env("INDEXER_URL", LOCAL.indexerUrl),
+  indexerWsUrl: env("INDEXER_WS_URL", LOCAL.indexerWsUrl),
+  nodeUrl: env("NODE_URL", LOCAL.nodeUrl),
+  proofServerUrl: env("PROOF_SERVER_URL", LOCAL.proofServerUrl),
 };
 
 /** Seed for deployment + wallet interactions. Default: the pre-funded dev account. */

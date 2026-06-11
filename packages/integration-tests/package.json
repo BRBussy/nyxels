@@ -25,14 +25,9 @@
     "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "^4.1.1",
     "@midnight-ntwrk/midnight-js-level-private-state-provider": "^4.1.1",
     "@midnight-ntwrk/midnight-js-node-zk-config-provider": "^4.1.1",
-    "@midnight-ntwrk/wallet-sdk-abstractions": "^2.1.0",
-    "@midnight-ntwrk/wallet-sdk-address-format": "^3.1.0",
-    "@midnight-ntwrk/wallet-sdk-dust-wallet": "^4.1.0",
     "@midnight-ntwrk/wallet-sdk-facade": "^4.0.1",
-    "@midnight-ntwrk/wallet-sdk-hd": "^3.0.1",
-    "@midnight-ntwrk/wallet-sdk-shielded": "^3.0.1",
-    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "^3.1.0",
     "@nyxels/contract-sdk": "*",
+    "@nyxels/lib": "*",
     "ws": "^8.18.0"
   },
   "devDependencies": {

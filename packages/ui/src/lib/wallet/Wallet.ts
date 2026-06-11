@@ -8,6 +8,7 @@
 // with no live state stream (the seed facade's `Observable` has no equivalent
 // there).
 import type { NetworkId } from "@/lib/network";
+import type { MidnightProvider, WalletProvider } from "@midnight-ntwrk/midnight-js/types";
 
 /**
  * The kind of underlying wallet a {@link Wallet} abstracts over. Lets callers
@@ -34,12 +35,11 @@ export const TokenKind = {
 } as const;
 export type TokenKind = (typeof TokenKind)[keyof typeof TokenKind];
 
-/** A wallet's three Midnight addresses, as bech32m strings. */
-export interface WalletAddresses {
-  unshielded: string; // NIGHT receive address
-  shielded: string;
-  dust: string;
-}
+// A wallet's three Midnight addresses (bech32m strings) — shared with the
+// integration tests, so defined in @nyxels/lib and re-exported here as part
+// of the Wallet interface's surface.
+export type { WalletAddresses } from "@nyxels/lib";
+import type { WalletAddresses } from "@nyxels/lib";
 
 /**
  * A wallet's balances. The shielded / unshielded maps are keyed by raw token
@@ -64,7 +64,7 @@ export interface TransferOutput {
  * The unified wallet handle. See the file header for the rationale behind the
  * async, pull-based shape.
  */
-export interface Wallet {
+export interface Wallet extends MidnightProvider, WalletProvider {
   /** Stable identifier — the unshielded address. */
   readonly id: string;
   /** User-facing label. */

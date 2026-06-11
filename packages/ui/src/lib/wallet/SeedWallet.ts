@@ -1,9 +1,7 @@
 // SeedWallet — a {@link Wallet} backed by a seed held in-app.
 //
-// This module is the single home of the seed→account construction utilities
-// (key derivation, address encoding, facade wiring); they exist only to build a
-// SeedWallet, so they live here as private helpers with the class as the public
-// surface.
+// The seed→account construction utilities (key derivation, address encoding,
+// facade wiring) come from @nyxels/lib, shared with the integration tests.
 //
 // Two construction paths:
 //   1. `const w = new SeedWallet(seed, config); await w.initialise();`
@@ -13,31 +11,15 @@
 // work). Everything else — derive keys, build the facade, start it — happens in
 // `initialise()`. Touching any other member before that throws.
 import * as ledger from "@midnight-ntwrk/ledger-v8";
-import { HDWallet, Roles } from "@midnight-ntwrk/wallet-sdk-hd";
+import { WalletFacade, type CombinedTokenTransfer } from "@midnight-ntwrk/wallet-sdk-facade";
+import { MidnightBech32m, ShieldedAddress, UnshieldedAddress } from "@midnight-ntwrk/wallet-sdk-address-format";
 import {
-  mergeWalletEntries,
-  WalletEntrySchema,
-  WalletFacade,
-  type CombinedTokenTransfer,
-} from "@midnight-ntwrk/wallet-sdk-facade";
-import { ShieldedWallet } from "@midnight-ntwrk/wallet-sdk-shielded";
-import { DustWallet } from "@midnight-ntwrk/wallet-sdk-dust-wallet";
-import {
-  createKeystore,
-  PublicKey as UnshieldedPublicKey,
-  type UnshieldedKeystore,
-  UnshieldedWallet,
-} from "@midnight-ntwrk/wallet-sdk-unshielded-wallet";
-import { InMemoryTransactionHistoryStorage } from "@midnight-ntwrk/wallet-sdk-abstractions";
-import {
-  DustAddress,
-  MidnightBech32m,
-  ShieldedAddress,
-  ShieldedCoinPublicKey,
-  ShieldedEncryptionPublicKey,
-  UnshieldedAddress,
-} from "@midnight-ntwrk/wallet-sdk-address-format";
-import { parseSeed } from "@/lib/key/parseSeed";
+  deriveAccountKeys,
+  deriveAddresses,
+  initialiseWalletFacade,
+  parseSeed,
+  type AccountKeys,
+} from "@nyxels/lib";
 import type { NetworkId } from "@/lib/network";
 import type { Config } from "@/contexts/ConfigContext";
 import {
@@ -48,46 +30,14 @@ import {
   type WalletBalances,
   type TransferOutput,
 } from "@/lib/wallet/Wallet";
+import type { UnboundTransaction } from "@midnight-ntwrk/midnight-js/types";
 
 const RECIPE_TTL_MS = 30 * 60 * 1000; // recipes expire 30 min out
-
-// ── Construction utilities (private to SeedWallet) ──────────────────────────
-
-/** The live key material for one account. Reused for signing / balancing. */
-export interface AccountKeys {
-  shieldedSecretKeys: ledger.ZswapSecretKeys;
-  dustSecretKey: ledger.DustSecretKey;
-  unshieldedKeystore: UnshieldedKeystore;
-}
 
 /** A constructed account: the WalletFacade bundled with its key material. */
 export type SeedWalletContext = AccountKeys & {
   wallet: WalletFacade;
 };
-
-/**
- * Parse a seed and derive the three role keys (Zswap / NightExternal / Dust).
- * Pure crypto — no network. This is the step that exercises the ledger WASM.
- */
-function deriveAccountKeys(seed: string, networkId: NetworkId): AccountKeys {
-  const { seed: seedBytes } = parseSeed(seed);
-
-  const hd = HDWallet.fromSeed(seedBytes);
-  if (hd.type !== "seedOk") throw new Error("HDWallet.fromSeed failed (seedError).");
-
-  const derived = hd.hdWallet
-    .selectAccount(0)
-    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
-    .deriveKeysAt(0);
-  if (derived.type !== "keysDerived") throw new Error("deriveKeysAt failed (keyOutOfBounds).");
-  hd.hdWallet.clear();
-
-  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(derived.keys[Roles.Zswap]);
-  const dustSecretKey = ledger.DustSecretKey.fromSeed(derived.keys[Roles.Dust]);
-  const unshieldedKeystore = createKeystore(derived.keys[Roles.NightExternal], networkId);
-
-  return { shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
-}
 
 /**
  * A wallet's default display name: the first 10 data characters of its
@@ -102,48 +52,6 @@ export function defaultSeedWalletName(unshieldedAddress: string): string {
   return data.slice(0, 10);
 }
 
-/** Compute the three bech32m addresses from the keys. Pure — no network. */
-function deriveAddresses(keys: AccountKeys, networkId: NetworkId): WalletAddresses {
-  const shieldedAddr = new ShieldedAddress(
-    ShieldedCoinPublicKey.fromHexString(keys.shieldedSecretKeys.coinPublicKey),
-    ShieldedEncryptionPublicKey.fromHexString(keys.shieldedSecretKeys.encryptionPublicKey),
-  );
-  return {
-    unshielded: keys.unshieldedKeystore.getBech32Address().asString(),
-    shielded: MidnightBech32m.encode(networkId, shieldedAddr).asString(),
-    dust: DustAddress.encodePublicKey(networkId, keys.dustSecretKey.publicKey),
-  };
-}
-
-/**
- * Wire up the WalletFacade for the given keys + connection config. This only
- * constructs the three sub-wallets — it does NOT start syncing.
- */
-function initialiseWalletFacade(keys: AccountKeys, config: Config): Promise<WalletFacade> {
-  return WalletFacade.init({
-    configuration: {
-      networkId: config.networkId,
-      indexerClientConnection: {
-        indexerHttpUrl: config.indexer,
-        indexerWsUrl: config.indexerWS,
-      },
-      provingServerUrl: new URL(config.proofServer),
-      // The facade talks to the node over WebSocket, so flip http(s) -> ws(s).
-      relayURL: new URL(config.node.replace(/^http/, "ws")),
-      costParameters: {
-        additionalFeeOverhead: 300_000_000_000n,
-        feeBlocksMargin: 5,
-      },
-      txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
-    },
-    shielded: (cfg) => ShieldedWallet(cfg).startWithSecretKeys(keys.shieldedSecretKeys),
-    unshielded: (cfg) =>
-      UnshieldedWallet(cfg).startWithPublicKey(UnshieldedPublicKey.fromKeyStore(keys.unshieldedKeystore)),
-    dust: (cfg) =>
-      DustWallet(cfg).startWithSecretKey(keys.dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
-  });
-}
-
 // ── SeedWallet ──────────────────────────────────────────────────────────────
 
 // What's known once keys are derived (before the facade has synced).
@@ -153,6 +61,13 @@ interface Identity {
 }
 
 export class SeedWallet implements Wallet {
+  /** Build and start a SeedWallet in one call (does NOT wait for sync). */
+  static async Initialise(seed: string, config: Config): Promise<SeedWallet> {
+    const wallet = new SeedWallet(seed, config);
+    await wallet.initialise();
+    return wallet;
+  }
+
   readonly source: WalletSource = WalletSource.Seed;
 
   private readonly seed: string;
@@ -175,11 +90,34 @@ export class SeedWallet implements Wallet {
     this.config = config;
   }
 
-  /** Build and start a SeedWallet in one call (does NOT wait for sync). */
-  static async Initialise(seed: string, config: Config): Promise<SeedWallet> {
-    const wallet = new SeedWallet(seed, config);
-    await wallet.initialise();
-    return wallet;
+  /**
+   * Balances a transaction
+   * @param tx The transaction to balance.
+   * @param ttl
+   * 
+   * NOTE: for MidnightProvider interface implementation.
+   */
+  balanceTx(tx: UnboundTransaction, ttl?: Date): Promise<ledger.FinalizedTransaction> {
+    throw new Error("Method not implemented.");
+  }
+
+  getCoinPublicKey(): ledger.CoinPublicKey {
+    throw new Error("Method not implemented.");
+  }
+
+  getEncryptionPublicKey(): ledger.EncPublicKey {
+    throw new Error("Method not implemented.");
+  }
+
+  /**
+   * Submit a transaction to the network to be consensed upon.
+   * @param tx The finalized transaction to submit.
+   * @returns The transaction identifier of the submitted transaction.
+   * 
+   * NOTE: for MidnightProvider interface implementation.
+   */
+  submitTx(tx: ledger.FinalizedTransaction): Promise<ledger.TransactionId> {
+    throw new Error("Method not implemented.");
   }
 
   /**

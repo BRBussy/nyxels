@@ -4,76 +4,29 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 // subpath so the whole app touches one resolution of midnight-js-network-id.
 import { setNetworkId as setSDKNetworkId } from "@midnight-ntwrk/midnight-js/network-id";
 
-import { DEFAULT_NETWORK, Network, type NetworkId } from "../lib/network.ts";
+import {
+  DEFAULT_ENDPOINTS,
+  indexerWsUrlFromIndexerUrl,
+  type Config,
+  type Endpoints,
+} from "@nyxels/lib";
+import { DEFAULT_NETWORK, Network } from "../lib/network.ts";
 
-/**
- * The set of endpoints (+ network id) a wallet needs to reach the chain. Plain
- * data, so it can be handed to domain classes/functions by argument rather
- * than having them reach for a global.
- */
-export interface Config {
-  indexer: string; // indexer GraphQL over HTTP
-  indexerWS: string; // indexer GraphQL over WebSocket (subscriptions / sync)
-  node: string; // Midnight node RPC (HTTP; converted to ws:// for the facade relay)
-  proofServer: string; // proof server (ZK proof generation)
-  networkId: NetworkId; // which network these endpoints belong to
-}
-
-type Endpoints = Omit<Config, "networkId">;
-
-// The proof server sees private witness data, so it is always run locally
-// rather than against a remote host.
-const LOCAL_PROOF_SERVER = "http://127.0.0.1:6300";
-
-// Default endpoints per network. Undeployed is the local standalone stack
-// (Docker containers) run during development.
-const DEFAULT_ENDPOINTS: Record<Network, Endpoints> = {
-  [Network.Undeployed]: {
-    indexer: "http://127.0.0.1:8088/api/v3/graphql",
-    indexerWS: "ws://127.0.0.1:8088/api/v3/graphql/ws",
-    node: "http://127.0.0.1:9944",
-    proofServer: LOCAL_PROOF_SERVER,
-  },
-  [Network.Preview]: {
-    indexer: "https://indexer.preview.midnight.network/api/v3/graphql",
-    indexerWS: "wss://indexer.preview.midnight.network/api/v3/graphql/ws",
-    node: "https://rpc.preview.midnight.network",
-    proofServer: LOCAL_PROOF_SERVER,
-  },
-  [Network.Preprod]: {
-    indexer: "https://indexer.preprod.midnight.network/api/v3/graphql",
-    indexerWS: "wss://indexer.preprod.midnight.network/api/v3/graphql/ws",
-    node: "https://rpc.preprod.midnight.network",
-    proofServer: LOCAL_PROOF_SERVER,
-  },
-  [Network.Mainnet]: {
-    indexer: "https://indexer.mainnet.midnight.network/api/v3/graphql",
-    indexerWS: "wss://indexer.mainnet.midnight.network/api/v3/graphql/ws",
-    node: "https://rpc.mainnet.midnight.network",
-    proofServer: LOCAL_PROOF_SERVER,
-  },
-};
+// Re-exported so app code can take the config shape from the context that
+// owns it, without also depending on @nyxels/lib directly.
+export type { Config };
 
 interface ConfigContextValue {
   /** The full connection config for the currently-selected network. */
   config: Config;
   /** Switch network (resets endpoints to that network's defaults). */
   setNetworkId: (networkId: Network) => void;
-  setIndexer: (indexer: string) => void;
-  setNode: (node: string) => void;
-  setProofServer: (proofServer: string) => void;
+  setIndexer: (indexerUrl: string) => void;
+  setNode: (nodeUrl: string) => void;
+  setProofServer: (proofServerUrl: string) => void;
 }
 
 const ConfigContext = createContext<ConfigContextValue | null>(null);
-
-// Derive the indexer WebSocket URL from the indexer HTTP URL: swap the scheme
-// to ws(s) and append the "/ws" path segment the indexer expects.
-function indexerWSFromIndexer(indexer: string): string {
-  const url = new URL(indexer);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = `${url.pathname.replace(/\/$/, "")}/ws`;
-  return url.toString();
-}
 
 /**
  * Holds the app-wide connection config in memory and owns the selected network.
@@ -96,15 +49,15 @@ export function ConfigContextProvider({ children }: { children: ReactNode }) {
     () => ({
       config,
       setNetworkId,
-      setIndexer: (indexer: string) =>
+      setIndexer: (indexerUrl: string) =>
         setEndpoints((curr) => ({
           ...curr,
-          indexer: new URL(indexer).toString(),
-          indexerWS: indexerWSFromIndexer(indexer),
+          indexerUrl: new URL(indexerUrl).toString(),
+          indexerWsUrl: indexerWsUrlFromIndexerUrl(indexerUrl),
         })),
-      setNode: (node: string) => setEndpoints((curr) => ({ ...curr, node: new URL(node).toString() })),
-      setProofServer: (proofServer: string) =>
-        setEndpoints((curr) => ({ ...curr, proofServer: new URL(proofServer).toString() })),
+      setNode: (nodeUrl: string) => setEndpoints((curr) => ({ ...curr, nodeUrl: new URL(nodeUrl).toString() })),
+      setProofServer: (proofServerUrl: string) =>
+        setEndpoints((curr) => ({ ...curr, proofServerUrl: new URL(proofServerUrl).toString() })),
     }),
     [config, setNetworkId],
   );
