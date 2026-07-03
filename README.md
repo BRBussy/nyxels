@@ -42,6 +42,6 @@ Target a single package with `-w`, e.g. `npm run build -w @nyxels/ui`.
 
 ## Toolchain
 
-- **Contract:** Compact compiler 0.31.0 / language 0.23 / runtime 0.16
+- **Contract:** Compact compiler 0.31.1 / language 0.23 / runtime 0.16
   (`@midnight-ntwrk/compact-runtime`).
 - **UI:** Vite 8 + React 19 + TypeScript 6 + perfect-freehand.
